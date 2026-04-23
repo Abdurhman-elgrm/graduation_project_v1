@@ -1,0 +1,1097 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI SOC Analyst — Live Dashboard</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --critical:  #ff4444;
+      --high:      #ff8c00;
+      --medium:    #e3b341;
+      --low:       #3fb950;
+      --info:      #8b949e;
+      --font:      'Segoe UI', system-ui, sans-serif;
+      --mono:      'Consolas', 'SF Mono', monospace;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .03em; }
+    .logo span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 1rem; font-size: .85rem; }
+    .ws-indicator {
+      display: flex; align-items: center; gap: .4rem;
+    }
+    .ws-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--info); transition: background .3s;
+    }
+    .ws-dot.connected { background: var(--low); }
+    .ws-dot.error     { background: var(--critical); }
+
+    /* ── Stats bar ─────────────────────────────────────────────── */
+    .stats-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      gap: 2rem;
+      height: 48px;
+      flex-shrink: 0;
+    }
+    .stat {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .8rem;
+    }
+    .stat-value { font-size: 1.1rem; font-weight: 700; }
+    .stat-label { color: var(--muted); }
+    .stat.critical .stat-value { color: var(--critical); }
+    .stat.high     .stat-value { color: var(--high); }
+    .stat.medium   .stat-value { color: var(--medium); }
+    .stat.low      .stat-value { color: var(--low); }
+    .stat-divider  { width: 1px; height: 28px; background: var(--border); }
+
+    /* ── Main three-column layout ──────────────────────────────── */
+    .main-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr 320px;
+      gap: 0;
+      overflow: hidden;
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+    .panel:last-child { border-right: none; }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-size: .85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+    .panel-body { flex: 1; overflow-y: auto; }
+
+    /* ── Scrollbar ─────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Badges ─────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: .7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .badge-CRITICAL { background: rgba(255,68,68,.15); color: var(--critical); border: 1px solid rgba(255,68,68,.3); }
+    .badge-HIGH     { background: rgba(255,140,0,.15);  color: var(--high);     border: 1px solid rgba(255,140,0,.3); }
+    .badge-MEDIUM   { background: rgba(227,179,65,.15); color: var(--medium);   border: 1px solid rgba(227,179,65,.3); }
+    .badge-LOW      { background: rgba(63,185,80,.15);  color: var(--low);      border: 1px solid rgba(63,185,80,.3); }
+    .badge-INFO     { background: rgba(139,148,158,.1); color: var(--muted);    border: 1px solid rgba(139,148,158,.2); }
+    .badge-source   { background: rgba(88,166,255,.1);  color: var(--accent);   border: 1px solid rgba(88,166,255,.2); font-family: var(--mono); font-size: .65rem; }
+
+    /* ── Log feed ─────────────────────────────────────────────── */
+    .log-controls { display: flex; gap: .5rem; align-items: center; }
+    .btn-sm {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: .75rem;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-sm:hover { background: var(--border); }
+    .btn-sm.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .log-entry {
+      padding: .6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .1s;
+      font-size: .8rem;
+    }
+    .log-entry:hover   { background: var(--surface2); }
+    .log-entry.active  { background: rgba(88,166,255,.08); border-left: 3px solid var(--accent); }
+    .log-entry-header  { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; flex-wrap: wrap; }
+    .log-ts            { font-family: var(--mono); font-size: .68rem; color: var(--muted); }
+    .log-message       { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .log-threat        { font-size: .72rem; color: var(--text); margin-top: .2rem; }
+
+    /* ── Analysis detail ──────────────────────────────────────── */
+    .analysis-empty {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%;
+      color: var(--muted); gap: .75rem; font-size: .9rem;
+    }
+    .analysis-empty svg { opacity: .3; }
+
+    .analysis-content { padding: 1.25rem; }
+    .analysis-section { margin-bottom: 1.5rem; }
+    .section-label {
+      font-size: .7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--muted);
+      margin-bottom: .6rem; display: flex; align-items: center; gap: .5rem;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .analysis-summary { font-size: .9rem; line-height: 1.6; color: var(--text); }
+    .ioc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    .ioc-group { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: .6rem .75rem; }
+    .ioc-group-label { font-size: .68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: .4rem; }
+    .ioc-item { font-family: var(--mono); font-size: .72rem; color: var(--accent); padding: 1px 0; }
+    .ioc-empty { font-size: .72rem; color: var(--muted); font-style: italic; }
+    .action-list { list-style: none; }
+    .action-item {
+      display: flex; gap: .5rem; align-items: flex-start;
+      font-size: .82rem; padding: .4rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .action-item:last-child { border-bottom: none; }
+    .action-num {
+      flex-shrink: 0; width: 20px; height: 20px;
+      background: var(--surface2); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .65rem; font-weight: 700; color: var(--accent);
+    }
+    .raw-log {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .75rem;
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .action-bar {
+      display: flex; gap: .75rem; padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      border: none; padding: .5rem 1.1rem;
+      border-radius: 6px; font-size: .82rem; font-weight: 600;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .85; }
+    .btn-secondary {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border);
+      padding: .5rem 1.1rem;
+      border-radius: 6px; font-size: .82rem;
+      cursor: pointer; transition: background .15s;
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    /* ── Playbook list ────────────────────────────────────────── */
+    .playbook-item {
+      padding: .85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .1s;
+    }
+    .playbook-item:hover { background: var(--surface2); }
+    .playbook-header    { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .4rem; }
+    .playbook-id        { font-family: var(--mono); font-size: .72rem; color: var(--accent); }
+    .playbook-title     { font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
+    .playbook-meta      { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+    .progress-bar       { flex: 1; min-width: 80px; background: var(--border); border-radius: 99px; height: 5px; overflow: hidden; }
+    .progress-fill      { height: 100%; background: var(--accent); border-radius: 99px; transition: width .3s; }
+    .progress-text      { font-size: .68rem; color: var(--muted); white-space: nowrap; }
+    .status-badge {
+      padding: 2px 7px; border-radius: 4px; font-size: .68rem;
+      font-weight: 700; text-transform: uppercase;
+    }
+    .status-open        { background: rgba(88,166,255,.1);  color: var(--accent);   }
+    .status-in_progress { background: rgba(227,179,65,.15); color: var(--medium);   }
+    .status-closed      { background: rgba(63,185,80,.1);   color: var(--low);      }
+    .playbook-empty {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 200px; color: var(--muted); font-size: .85rem; gap: .5rem;
+    }
+
+    /* ── Toast notifications ──────────────────────────────────── */
+    #toast-container {
+      position: fixed; top: 1rem; right: 1rem;
+      z-index: 1000; display: flex; flex-direction: column; gap: .5rem;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: .75rem 1rem;
+      min-width: 280px; max-width: 360px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      display: flex; gap: .75rem; align-items: flex-start;
+      pointer-events: auto;
+      animation: slideIn .2s ease-out;
+    }
+    .toast.critical { border-color: var(--critical); }
+    .toast.high     { border-color: var(--high); }
+    .toast-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .toast-body { flex: 1; }
+    .toast-title { font-weight: 700; font-size: .82rem; margin-bottom: .15rem; }
+    .toast-msg   { font-size: .78rem; color: var(--muted); }
+    .toast-close {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 1rem; padding: 0;
+      pointer-events: auto;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0);    opacity: 1; }
+      to   { transform: translateX(120%); opacity: 0; }
+    }
+
+    /* ── Skeleton loader ──────────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px; height: 14px;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── Utility ──────────────────────────────────────────────── */
+    .loading-spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Model selector ───────────────────────────────────────── */
+    .model-selector-wrap {
+      position: relative; display: flex; align-items: center;
+    }
+    .model-selector-btn {
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .3rem .75rem;
+      border-radius: 6px; font-size: .78rem; cursor: pointer;
+      transition: border-color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .model-selector-btn:hover { border-color: var(--accent); background: var(--bg); }
+    .model-selector-btn .chevron {
+      font-size: .6rem; color: var(--muted); transition: transform .15s;
+    }
+    .model-selector-btn.open .chevron { transform: rotate(180deg); }
+    .model-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--low); flex-shrink: 0;
+    }
+
+    .model-dropdown {
+      display: none; position: absolute; top: calc(100% + 6px); right: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; min-width: 280px; z-index: 200;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      overflow: hidden;
+    }
+    .model-dropdown.open { display: block; }
+
+    .model-group-label {
+      padding: .5rem .85rem .25rem;
+      font-size: .65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    .model-group-label:first-child { border-top: none; }
+
+    .model-option {
+      display: flex; align-items: center; gap: .6rem;
+      padding: .55rem .85rem;
+      cursor: pointer; transition: background .1s;
+      font-size: .8rem;
+    }
+    .model-option:hover { background: var(--surface2); }
+    .model-option.selected { background: rgba(88,166,255,.08); }
+    .model-option-name { font-weight: 600; flex: 1; }
+    .speed-badge {
+      padding: 1px 6px; border-radius: 3px;
+      font-size: .62rem; font-weight: 700;
+      background: rgba(88,166,255,.12);
+      color: var(--accent); border: 1px solid rgba(88,166,255,.2);
+      white-space: nowrap;
+    }
+    .model-check { color: var(--low); font-size: .85rem; width: 14px; text-align: center; }
+
+    /* ── Model used pill in analysis panel ────────────────────── */
+    .model-used-pill {
+      display: inline-flex; align-items: center; gap: .35rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 99px; padding: 2px 9px;
+      font-size: .68rem; color: var(--muted);
+    }
+    .model-used-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--low); }
+
+    /* ── Active model in stats bar ────────────────────────────── */
+    .stat-model {
+      display: flex; align-items: center; gap: .4rem;
+      font-size: .78rem; color: var(--muted);
+      margin-left: auto;
+    }
+    .stat-model-name { color: var(--accent); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">AI <span>SOC</span> Analyst</div>
+  <div class="header-right">
+
+    <!-- Model selector dropdown -->
+    <div class="model-selector-wrap" id="model-selector-wrap">
+      <button class="model-selector-btn" id="model-selector-btn" onclick="toggleModelDropdown(event)">
+        <span class="model-dot"></span>
+        <span id="header-model-name">Loading…</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="model-dropdown" id="model-dropdown"></div>
+    </div>
+
+    <a href="/settings" style="color:var(--muted);font-size:.8rem;text-decoration:none;padding:.3rem .6rem;border:1px solid var(--border);border-radius:5px;transition:border-color .15s" title="Model Settings">⚙️</a>
+
+    <div class="ws-indicator">
+      <div class="ws-dot" id="ws-dot"></div>
+      <span id="ws-status" style="color:var(--muted)">Connecting…</span>
+    </div>
+    <span style="color:var(--muted);font-size:.75rem" id="clock"></span>
+  </div>
+</header>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat">
+    <span class="stat-value" id="stat-logs-today">—</span>
+    <span class="stat-label">logs today</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat critical">
+    <span class="stat-value" id="stat-critical">—</span>
+    <span class="stat-label">CRITICAL</span>
+  </div>
+  <div class="stat high">
+    <span class="stat-value" id="stat-high">—</span>
+    <span class="stat-label">HIGH</span>
+  </div>
+  <div class="stat medium">
+    <span class="stat-value" id="stat-medium">—</span>
+    <span class="stat-label">MEDIUM</span>
+  </div>
+  <div class="stat low">
+    <span class="stat-value" id="stat-low">—</span>
+    <span class="stat-label">LOW</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat">
+    <span class="stat-value" id="stat-playbooks" style="color:var(--accent)">—</span>
+    <span class="stat-label">open playbooks</span>
+  </div>
+  <div class="stat-model" id="stat-model-display" style="margin-left:auto">
+    <span>Active model:</span>
+    <span class="stat-model-name" id="stat-model-name">—</span>
+  </div>
+</div>
+
+<!-- Main grid -->
+<div class="main-grid">
+
+  <!-- ── Left: Live Log Feed ──────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Live Log Feed</span>
+      <div class="log-controls">
+        <button class="btn-sm" id="btn-filter-all"      onclick="setFilter(null)"        >All</button>
+        <button class="btn-sm" id="btn-filter-critical" onclick="setFilter('CRITICAL')"  >CRIT</button>
+        <button class="btn-sm" id="btn-filter-high"     onclick="setFilter('HIGH')"      >HIGH</button>
+        <button class="btn-sm active" id="btn-pause"    onclick="togglePause()"          >⏸ Pause</button>
+      </div>
+    </div>
+    <div class="panel-body" id="log-feed"></div>
+  </div>
+
+  <!-- ── Middle: Analysis Detail ─────────────────────────────── -->
+  <div class="panel" style="border-right:1px solid var(--border)">
+    <div class="panel-header">
+      <span class="panel-title">Analysis Detail</span>
+      <div id="analysis-criticality-badge"></div>
+    </div>
+    <div class="panel-body" id="analysis-panel">
+      <div class="analysis-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          <path d="M11 8v6M8 11h6"/>
+        </svg>
+        <span>Select a log entry to view AI analysis</span>
+      </div>
+    </div>
+    <div class="action-bar" id="analysis-actions" style="display:none">
+      <button class="btn-secondary btn-sm" onclick="reanalyzeLog()" style="padding:.5rem 1rem">
+        ↺ Re-analyze
+      </button>
+      <div id="playbook-action-btn"></div>
+    </div>
+  </div>
+
+  <!-- ── Right: Active Playbooks ─────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Active Playbooks</span>
+      <div style="display:flex;gap:.35rem">
+        <button class="btn-sm" onclick="loadPlaybooks('open,in_progress')">Active</button>
+        <button class="btn-sm" onclick="loadPlaybooks('closed')">Closed</button>
+      </div>
+    </div>
+    <div class="panel-body" id="playbook-panel">
+      <div class="playbook-empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+/* ========================================================
+   State
+   ======================================================== */
+let ws = null;
+let wsReconnectDelay = 1000;
+let paused = false;
+let activeFilter = null;
+let currentLogId = null;
+let currentAnalysisId = null;
+const MAX_LOG_ROWS = 200;
+
+/* ========================================================
+   Clock
+   ======================================================== */
+function updateClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ========================================================
+   Stats
+   ======================================================== */
+async function loadStats() {
+  try {
+    const r = await fetch('/api/analysis/stats');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('stat-logs-today').textContent = d.logs_today ?? 0;
+    document.getElementById('stat-critical').textContent   = d.critical ?? 0;
+    document.getElementById('stat-high').textContent       = d.high ?? 0;
+    document.getElementById('stat-medium').textContent     = d.medium ?? 0;
+    document.getElementById('stat-low').textContent        = d.low ?? 0;
+    document.getElementById('stat-playbooks').textContent  = d.open_playbooks ?? 0;
+  } catch(e) { console.warn('Stats fetch failed', e); }
+}
+setInterval(loadStats, 15000);
+loadStats();
+
+/* ========================================================
+   Initial log feed load
+   ======================================================== */
+async function loadInitialLogs() {
+  try {
+    const r = await fetch('/api/logs?limit=50&page=1');
+    if (!r.ok) return;
+    const { data } = await r.json();
+    (data || []).reverse().forEach(row => {
+      const analysis = (row.analysis_results || [])[0] || {};
+      prependLog({
+        id: row.id,
+        timestamp: row.timestamp || row.ingested_at,
+        source_file: row.source_file,
+        raw_message: row.raw_message,
+        parsed_fields: row.parsed_fields,
+        criticality: analysis.criticality,
+        threat_type: analysis.threat_type,
+        summary: analysis.summary,
+      }, true);
+    });
+  } catch(e) { console.warn('Initial log load failed', e); }
+}
+loadInitialLogs();
+
+/* ========================================================
+   Log feed
+   ======================================================== */
+function prependLog(entry, skipAutoScroll) {
+  const crit = entry.criticality || 'INFO';
+  if (activeFilter && crit !== activeFilter) return;
+
+  const feed = document.getElementById('log-feed');
+  const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en-GB', {hour12:false}) : '--:--:--';
+  const src = entry.source_file || 'unknown';
+  const msg = (entry.parsed_fields?.message || entry.raw_message || '').slice(0, 120);
+  const threat = entry.threat_type || '';
+
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  el.dataset.id = entry.id;
+  el.dataset.crit = crit;
+  el.innerHTML = `
+    <div class="log-entry-header">
+      <span class="log-ts">${ts}</span>
+      <span class="badge badge-source">${escHtml(src)}</span>
+      ${crit ? `<span class="badge badge-${crit}">${crit}</span>` : ''}
+    </div>
+    ${threat ? `<div class="log-threat">${escHtml(threat)}</div>` : ''}
+    <div class="log-message">${escHtml(msg)}</div>
+  `;
+  el.addEventListener('click', () => selectLog(entry.id));
+
+  feed.insertBefore(el, feed.firstChild);
+
+  // Trim old rows
+  while (feed.children.length > MAX_LOG_ROWS) {
+    feed.removeChild(feed.lastChild);
+  }
+
+  if (!paused && !skipAutoScroll) {
+    feed.scrollTop = 0;
+  }
+}
+
+function setFilter(crit) {
+  activeFilter = crit;
+  ['all','critical','high'].forEach(k => {
+    document.getElementById(`btn-filter-${k}`).classList.toggle(
+      'active', (k === 'all' && !crit) || (crit && crit.toLowerCase() === k)
+    );
+  });
+  // Reload feed with filter
+  const feed = document.getElementById('log-feed');
+  feed.innerHTML = '';
+  loadFilteredLogs(crit);
+}
+
+async function loadFilteredLogs(crit) {
+  let url = '/api/logs?limit=50';
+  if (crit) url += `&criticality=${crit}`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const { data } = await r.json();
+    (data || []).reverse().forEach(row => {
+      const analysis = (row.analysis_results || [])[0] || {};
+      prependLog({
+        id: row.id,
+        timestamp: row.timestamp || row.ingested_at,
+        source_file: row.source_file,
+        raw_message: row.raw_message,
+        parsed_fields: row.parsed_fields,
+        criticality: analysis.criticality,
+        threat_type: analysis.threat_type,
+        summary: analysis.summary,
+      }, true);
+    });
+  } catch(e) {}
+}
+
+function togglePause() {
+  paused = !paused;
+  const btn = document.getElementById('btn-pause');
+  btn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+  btn.classList.toggle('active', paused);
+}
+
+/* ========================================================
+   Analysis Detail
+   ======================================================== */
+async function selectLog(logId) {
+  // Highlight active row
+  document.querySelectorAll('.log-entry').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === logId);
+  });
+
+  currentLogId = logId;
+  currentAnalysisId = null;
+
+  const panel = document.getElementById('analysis-panel');
+  const badge = document.getElementById('analysis-criticality-badge');
+  const actions = document.getElementById('analysis-actions');
+  badge.innerHTML = '';
+  actions.style.display = 'none';
+
+  panel.innerHTML = `<div style="padding:2rem;display:flex;justify-content:center"><div class="loading-spinner"></div></div>`;
+
+  try {
+    const r = await fetch(`/api/logs/${logId}`);
+    if (!r.ok) { panel.innerHTML = `<div class="analysis-empty"><span>Failed to load.</span></div>`; return; }
+    const data = await r.json();
+    const analysis = (data.analysis_results || [])[0] || null;
+    const playbook = analysis?.playbooks?.[0] || null;
+
+    if (!analysis) {
+      panel.innerHTML = `<div class="analysis-empty"><span>Analysis pending — AI is processing…</span></div>`;
+      actions.style.display = 'flex';
+      document.getElementById('playbook-action-btn').innerHTML = '';
+      return;
+    }
+
+    currentAnalysisId = analysis.id;
+    badge.innerHTML = `<span class="badge badge-${analysis.criticality}">${analysis.criticality}</span>`;
+
+    const ioc = analysis.ioc_data || {};
+    const actions_list = analysis.recommended_actions || [];
+
+    panel.innerHTML = `
+      <div class="analysis-content">
+        <div class="analysis-section">
+          <div class="section-label">Threat Summary</div>
+          <div class="analysis-summary">${escHtml(analysis.summary || 'No summary available.')}</div>
+        </div>
+
+        <div class="analysis-section">
+          <div class="section-label">Threat Type</div>
+          <div style="font-size:.9rem;color:var(--text)">${escHtml(analysis.threat_type || 'Unknown')}</div>
+        </div>
+
+        <div class="analysis-section">
+          <div class="section-label">Indicators of Compromise</div>
+          <div class="ioc-grid">
+            ${renderIOCGroup('IP Addresses', ioc.ip_addresses)}
+            ${renderIOCGroup('Usernames', ioc.usernames)}
+            ${renderIOCGroup('File Paths', ioc.file_paths)}
+            ${renderIOCGroup('Processes', ioc.processes)}
+          </div>
+        </div>
+
+        <div class="analysis-section">
+          <div class="section-label">Recommended Actions</div>
+          <ul class="action-list">
+            ${actions_list.map((a, i) => `
+              <li class="action-item">
+                <span class="action-num">${i+1}</span>
+                <span>${escHtml(a)}</span>
+              </li>`).join('')}
+            ${actions_list.length === 0 ? '<li class="action-item"><span style="color:var(--muted)">No actions specified.</span></li>' : ''}
+          </ul>
+        </div>
+
+        <div class="analysis-section">
+          <div class="section-label">Raw Log</div>
+          <div class="raw-log">${escHtml(data.raw_message || '')}</div>
+        </div>
+
+        ${analysis.llm_model_used ? `
+        <div style="padding:0 0 .5rem">
+          <span class="model-used-pill">
+            <span class="dot"></span>
+            Analyzed by ${escHtml(analysis.llm_model_used)}
+          </span>
+        </div>` : ''}
+      </div>
+    `;
+
+    // Action bar
+    actions.style.display = 'flex';
+    const pbBtn = document.getElementById('playbook-action-btn');
+    if (playbook) {
+      pbBtn.innerHTML = `<button class="btn-primary" onclick="window.location='/playbook/${playbook.id}'">📋 View Playbook</button>`;
+    } else if (['HIGH','CRITICAL'].includes(analysis.criticality)) {
+      pbBtn.innerHTML = `<button class="btn-primary" onclick="triggerPlaybook('${analysis.id}')">⚡ Generate Playbook</button>`;
+    } else {
+      pbBtn.innerHTML = '';
+    }
+  } catch(e) {
+    panel.innerHTML = `<div class="analysis-empty"><span>Error loading analysis.</span></div>`;
+  }
+}
+
+function renderIOCGroup(label, items) {
+  const list = (items || []).filter(Boolean);
+  return `
+    <div class="ioc-group">
+      <div class="ioc-group-label">${label}</div>
+      ${list.length > 0
+        ? list.map(i => `<div class="ioc-item">${escHtml(String(i))}</div>`).join('')
+        : `<div class="ioc-empty">none</div>`}
+    </div>`;
+}
+
+async function reanalyzeLog() {
+  if (!currentLogId) return;
+  try {
+    const r = await fetch(`/api/logs/${currentLogId}/reanalyze`, { method: 'POST' });
+    if (r.ok) {
+      showToast('info', 'ℹ️', 'Re-analysis queued', 'AI analysis will update shortly.');
+      const panel = document.getElementById('analysis-panel');
+      panel.innerHTML = `<div class="analysis-empty"><span>Re-analysis in progress…</span></div>`;
+    }
+  } catch(e) {}
+}
+
+async function triggerPlaybook(analysisId) {
+  const pbBtn = document.getElementById('playbook-action-btn');
+  pbBtn.innerHTML = '<span style="color:var(--muted);font-size:.85rem">Generating…</span>';
+  try {
+    const r = await fetch(`/api/playbooks/trigger/${analysisId}`, { method: 'POST' });
+    if (r.ok) {
+      showToast('info', '⚡', 'Playbook generating', 'AI is drafting the incident response playbook…');
+    } else {
+      const err = await r.json().catch(() => ({}));
+      showToast('critical', '❌', 'Failed', err.detail || 'Could not trigger playbook generation');
+      pbBtn.innerHTML = `<button class="btn-primary" onclick="triggerPlaybook('${analysisId}')">⚡ Generate Playbook</button>`;
+    }
+  } catch(e) {
+    showToast('critical', '❌', 'Error', e.message);
+    pbBtn.innerHTML = `<button class="btn-primary" onclick="triggerPlaybook('${analysisId}')">⚡ Generate Playbook</button>`;
+  }
+}
+
+/* ========================================================
+   Playbooks
+   ======================================================== */
+async function loadPlaybooks(statusFilter) {
+  const panel = document.getElementById('playbook-panel');
+  panel.innerHTML = `<div class="playbook-empty">Loading…</div>`;
+  try {
+    let url = '/api/playbooks?limit=20';
+    if (statusFilter) {
+      // The API takes a single status; load open and in_progress separately
+      const statuses = statusFilter.split(',');
+      let allData = [];
+      for (const s of statuses) {
+        const r = await fetch(`/api/playbooks?status=${s}&limit=20`);
+        if (r.ok) { const d = await r.json(); allData = allData.concat(d.data || []); }
+      }
+      renderPlaybooks(panel, allData);
+      return;
+    }
+    const r = await fetch(url);
+    if (!r.ok) { panel.innerHTML = `<div class="playbook-empty">Failed to load.</div>`; return; }
+    const { data } = await r.json();
+    renderPlaybooks(panel, data || []);
+  } catch(e) {
+    panel.innerHTML = `<div class="playbook-empty">Error loading playbooks.</div>`;
+  }
+}
+
+function renderPlaybooks(panel, data) {
+  if (!data.length) {
+    panel.innerHTML = `<div class="playbook-empty">No playbooks found.</div>`;
+    return;
+  }
+  panel.innerHTML = data.map(pb => {
+    const analysis = pb.analysis_results || {};
+    const crit = analysis.criticality || 'INFO';
+    const total = pb.total_steps || 0;
+    const done  = pb.completed_steps || 0;
+    const pct   = total > 0 ? Math.round((done/total)*100) : 0;
+    return `
+      <div class="playbook-item" onclick="window.location='/playbook/${pb.id}'">
+        <div class="playbook-header">
+          <span class="playbook-id">${escHtml(pb.incident_id)}</span>
+          <span class="badge badge-${crit}">${crit}</span>
+        </div>
+        <div class="playbook-title">${escHtml(pb.title)}</div>
+        <div class="playbook-meta">
+          <span class="status-badge status-${pb.status}">${pb.status.replace('_',' ')}</span>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <span class="progress-text">${done}/${total}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+loadPlaybooks('open,in_progress');
+setInterval(() => loadPlaybooks('open,in_progress'), 30000);
+
+/* ========================================================
+   WebSocket
+   ======================================================== */
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/live`);
+
+  ws.onopen = () => {
+    wsReconnectDelay = 1000;
+    setWsStatus('connected');
+  };
+
+  ws.onclose = () => {
+    setWsStatus('disconnected');
+    setTimeout(connectWS, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+  };
+
+  ws.onerror = () => setWsStatus('error');
+
+  ws.onmessage = (evt) => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+    handleWsMessage(msg);
+  };
+}
+
+function setWsStatus(state) {
+  const dot = document.getElementById('ws-dot');
+  const label = document.getElementById('ws-status');
+  dot.className = 'ws-dot ' + (state === 'connected' ? 'connected' : state === 'error' ? 'error' : '');
+  label.textContent = state === 'connected' ? 'Live' : state === 'error' ? 'Error' : 'Reconnecting…';
+}
+
+function handleWsMessage(msg) {
+  switch (msg.type) {
+    case 'log_ingested':
+      if (!paused) {
+        prependLog(msg.data);
+        loadStats();
+      }
+      break;
+
+    case 'analysis_ready': {
+      const d = msg.data;
+      // Update log row badge
+      const row = document.querySelector(`.log-entry[data-id="${d.log_id}"]`);
+      if (row) {
+        row.dataset.crit = d.criticality;
+        const header = row.querySelector('.log-entry-header');
+        const existingBadge = header.querySelector('.badge:not(.badge-source)');
+        if (existingBadge) existingBadge.remove();
+        const badge = document.createElement('span');
+        badge.className = `badge badge-${d.criticality}`;
+        badge.textContent = d.criticality;
+        header.appendChild(badge);
+        const threatDiv = row.querySelector('.log-threat');
+        if (threatDiv) threatDiv.textContent = d.threat_type || '';
+      }
+      // If this is the currently selected log, refresh the panel
+      if (currentLogId === d.log_id) selectLog(currentLogId);
+      loadStats();
+
+      if (d.criticality === 'CRITICAL') {
+        showToast('critical', '🚨', 'CRITICAL threat detected', d.threat_type + ': ' + (d.summary || '').slice(0, 80) + '…');
+      } else if (d.criticality === 'HIGH') {
+        showToast('high', '⚠️', 'HIGH severity event', d.threat_type + ': ' + (d.summary || '').slice(0, 80) + '…');
+      }
+      break;
+    }
+
+    case 'playbook_created': {
+      const d = msg.data;
+      showToast('info', '📋', 'Playbook created', `${d.incident_id}: ${d.title}`);
+      loadPlaybooks('open,in_progress');
+      loadStats();
+      if (currentLogId) selectLog(currentLogId);
+      break;
+    }
+
+    case 'step_completed':
+      // Refresh playbook list
+      loadPlaybooks('open,in_progress');
+      break;
+  }
+}
+
+connectWS();
+
+/* ========================================================
+   Toast
+   ======================================================== */
+function showToast(type, icon, title, msg) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <div class="toast-body">
+      <div class="toast-title">${escHtml(title)}</div>
+      <div class="toast-msg">${escHtml(msg)}</div>
+    </div>
+    <button class="toast-close" onclick="this.closest('.toast').remove()">×</button>
+  `;
+  container.prepend(el);
+  setTimeout(() => {
+    el.style.animation = 'slideOut .2s ease-in forwards';
+    setTimeout(() => el.remove(), 200);
+  }, 6000);
+}
+
+/* ========================================================
+   Model selector
+   ======================================================== */
+let allModels = [];
+let activeModelId = null;
+
+async function loadModels() {
+  try {
+    const [modelsRes, currentRes] = await Promise.all([
+      fetch('/api/settings/models'),
+      fetch('/api/settings/current-model'),
+    ]);
+    if (!modelsRes.ok || !currentRes.ok) return;
+    const { models } = await modelsRes.json();
+    const { model_id } = await currentRes.json();
+
+    allModels = models || [];
+    activeModelId = model_id;
+    renderModelDropdown();
+    updateModelDisplay(model_id, models);
+  } catch(e) { console.warn('Model load failed', e); }
+}
+
+function renderModelDropdown() {
+  const dropdown = document.getElementById('model-dropdown');
+  if (!dropdown) return;
+
+  // Group by provider
+  const groups = {};
+  allModels.forEach(m => {
+    if (!groups[m.provider]) groups[m.provider] = [];
+    groups[m.provider].push(m);
+  });
+
+  dropdown.innerHTML = Object.entries(groups).map(([provider, models]) => `
+    <div class="model-group-label">${escHtml(provider)}</div>
+    ${models.map(m => `
+      <div class="model-option ${m.id === activeModelId ? 'selected' : ''}"
+           onclick="switchModel('${m.id}', ${JSON.stringify(m.name)})">
+        <span class="model-check">${m.id === activeModelId ? '✓' : ''}</span>
+        <span class="model-option-name">${escHtml(m.name)}</span>
+        <span class="speed-badge">${escHtml(m.speed)}</span>
+      </div>`).join('')}
+  `).join('');
+}
+
+function updateModelDisplay(modelId, models) {
+  const info = (models || allModels).find(m => m.id === modelId) || {};
+  const name = info.name || modelId;
+  const headerName = document.getElementById('header-model-name');
+  const statName   = document.getElementById('stat-model-name');
+  if (headerName) headerName.textContent = name;
+  if (statName)   statName.textContent   = name;
+}
+
+function toggleModelDropdown(e) {
+  e.stopPropagation();
+  const btn = document.getElementById('model-selector-btn');
+  const dd  = document.getElementById('model-dropdown');
+  const isOpen = dd.classList.contains('open');
+  // Close any other open dropdowns, then toggle this one
+  document.querySelectorAll('.model-dropdown.open').forEach(el => {
+    el.classList.remove('open');
+    el.closest('.model-selector-wrap')?.querySelector('.model-selector-btn')?.classList.remove('open');
+  });
+  if (!isOpen) {
+    dd.classList.add('open');
+    btn.classList.add('open');
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', () => {
+  document.querySelectorAll('.model-dropdown.open').forEach(el => {
+    el.classList.remove('open');
+    el.closest('.model-selector-wrap')?.querySelector('.model-selector-btn')?.classList.remove('open');
+  });
+});
+
+async function switchModel(modelId, modelName) {
+  try {
+    const r = await fetch('/api/settings/current-model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: modelId }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+    activeModelId = modelId;
+    renderModelDropdown();
+    updateModelDisplay(modelId);
+
+    // Close dropdown
+    document.querySelectorAll('.model-dropdown.open').forEach(el => {
+      el.classList.remove('open');
+      el.closest('.model-selector-wrap')?.querySelector('.model-selector-btn')?.classList.remove('open');
+    });
+
+    showToast('info', '🤖', `Switched to ${modelName}`,
+      'All new analyses will use this model.');
+  } catch(e) {
+    showToast('critical', '❌', 'Model switch failed', e.message);
+  }
+}
+
+loadModels();
+
+/* ========================================================
+   Helpers
+   ======================================================== */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

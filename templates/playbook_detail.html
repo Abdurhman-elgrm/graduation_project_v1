@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Playbook Detail — AI SOC Analyst</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --critical:  #ff4444;
+      --high:      #ff8c00;
+      --medium:    #e3b341;
+      --low:       #3fb950;
+      --info:      #8b949e;
+      --font:      'Segoe UI', system-ui, sans-serif;
+      --mono:      'Consolas', 'SF Mono', monospace;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .03em; cursor: pointer; }
+    .logo span { color: var(--accent); }
+    .back-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .4rem .9rem;
+      border-radius: 6px; font-size: .82rem; cursor: pointer;
+      text-decoration: none; display: flex; align-items: center; gap: .4rem;
+      transition: background .15s;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    /* ── Content ── */
+    .content { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem 4rem; }
+
+    /* ── Incident header card ── */
+    .incident-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .incident-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;
+    }
+    .incident-id {
+      font-family: var(--mono); font-size: .85rem;
+      color: var(--accent); margin-bottom: .3rem;
+    }
+    .incident-title { font-size: 1.4rem; font-weight: 700; }
+    .incident-meta {
+      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+      margin-top: .75rem;
+    }
+    .meta-item { font-size: .78rem; color: var(--muted); display: flex; align-items: center; gap: .25rem; }
+
+    /* ── Progress bar ── */
+    .progress-section { margin-top: 1.2rem; }
+    .progress-header {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: .5rem;
+      font-size: .8rem; color: var(--muted);
+    }
+    .progress-pct { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .progress-bar { background: var(--border); border-radius: 99px; height: 8px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s ease; }
+
+    /* ── Status + export controls ── */
+    .controls-row {
+      display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .status-select {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .45rem .8rem;
+      border-radius: 6px; font-size: .85rem; cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+      padding-right: 2rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right .6rem center;
+    }
+    .status-select:focus { outline: none; border-color: var(--accent); }
+    .btn-export {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .45rem 1rem;
+      border-radius: 6px; font-size: .82rem; cursor: pointer;
+      transition: background .15s; margin-left: auto;
+    }
+    .btn-export:hover { background: var(--border); }
+
+    /* ── Category groups ── */
+    .category-group { margin-bottom: 1.5rem; }
+    .category-header {
+      display: flex; align-items: center; gap: .5rem;
+      margin-bottom: .75rem;
+    }
+    .category-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .85rem;
+    }
+    .category-name {
+      font-size: .8rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    }
+    .category-count { font-size: .72rem; color: var(--muted); }
+
+    /* ── Step cards ── */
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .9rem 1rem;
+      margin-bottom: .5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: .75rem;
+      transition: border-color .15s, background .15s;
+    }
+    .step-card.completed {
+      background: rgba(63,185,80,.04);
+      border-color: rgba(63,185,80,.2);
+    }
+    .step-card.completed .step-description {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+    .step-checkbox {
+      flex-shrink: 0; margin-top: .15rem;
+      width: 18px; height: 18px;
+      accent-color: var(--low);
+      cursor: pointer;
+    }
+    .step-body { flex: 1; }
+    .step-num {
+      font-size: .68rem; font-weight: 700;
+      color: var(--muted); margin-bottom: .2rem;
+    }
+    .step-description { font-size: .88rem; line-height: 1.55; }
+    .step-meta {
+      margin-top: .4rem; font-size: .7rem; color: var(--muted);
+    }
+
+    /* ── Threat context card ── */
+    .context-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+    }
+    .context-title {
+      font-size: .75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-bottom: .75rem;
+    }
+    .context-summary { font-size: .88rem; line-height: 1.6; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    }
+    .badge-CRITICAL { background:rgba(255,68,68,.15);  color:var(--critical); border:1px solid rgba(255,68,68,.3); }
+    .badge-HIGH     { background:rgba(255,140,0,.15);  color:var(--high);     border:1px solid rgba(255,140,0,.3); }
+    .badge-MEDIUM   { background:rgba(227,179,65,.15); color:var(--medium);   border:1px solid rgba(227,179,65,.3); }
+    .badge-LOW      { background:rgba(63,185,80,.15);  color:var(--low);      border:1px solid rgba(63,185,80,.3); }
+    .badge-INFO     { background:rgba(139,148,158,.1); color:var(--muted);    border:1px solid rgba(139,148,158,.2); }
+
+    .status-badge {
+      padding: 3px 10px; border-radius: 6px; font-size: .78rem; font-weight: 700;
+      text-transform: uppercase;
+    }
+    .status-open        { background:rgba(88,166,255,.1);  color:var(--accent);  border:1px solid rgba(88,166,255,.2); }
+    .status-in_progress { background:rgba(227,179,65,.15); color:var(--medium);  border:1px solid rgba(227,179,65,.3); }
+    .status-closed      { background:rgba(63,185,80,.1);   color:var(--low);     border:1px solid rgba(63,185,80,.2); }
+
+    /* ── Category colours ── */
+    .cat-Investigation    { background:rgba(88,166,255,.15); color:var(--accent); }
+    .cat-Containment      { background:rgba(255,140,0,.15);  color:var(--high); }
+    .cat-Eradication      { background:rgba(255,68,68,.15);  color:var(--critical); }
+    .cat-Recovery         { background:rgba(63,185,80,.15);  color:var(--low); }
+    .cat-Evidence\ Collection { background:rgba(227,179,65,.15); color:var(--medium); }
+    .cat-Escalation       { background:rgba(187,128,255,.15); color:#b392f0; }
+
+    /* ── Loading / Error states ── */
+    .loading-state {
+      text-align: center; padding: 4rem 2rem; color: var(--muted);
+    }
+    .loading-spinner {
+      display: inline-block; width: 32px; height: 32px;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .6s linear infinite; margin-bottom: 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Print styles ── */
+    @media print {
+      body { background: #fff; color: #000; }
+      header { display: none; }
+      .controls-row { display: none; }
+      .btn-export { display: none; }
+      .step-checkbox { display: none; }
+      .incident-card, .context-card, .step-card, .category-group { break-inside: avoid; }
+      .step-card { border: 1px solid #ccc; }
+      .badge, .status-badge { border: 1px solid #999; color: #333 !important; background: #f0f0f0 !important; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo" onclick="location.href='/'">AI <span>SOC</span> Analyst</div>
+  <a href="/" class="back-btn">← Back to Dashboard</a>
+</header>
+
+<div class="content" id="content">
+  <div class="loading-state">
+    <div class="loading-spinner"></div>
+    <div>Loading playbook…</div>
+  </div>
+</div>
+
+<script>
+const PLAYBOOK_ID = "{{ playbook_id }}";
+
+const CATEGORY_ICONS = {
+  'Investigation':        { icon: '🔍', cls: 'cat-Investigation' },
+  'Containment':          { icon: '🛡️', cls: 'cat-Containment' },
+  'Eradication':          { icon: '🗑️', cls: 'cat-Eradication' },
+  'Recovery':             { icon: '🔄', cls: 'cat-Recovery' },
+  'Evidence Collection':  { icon: '📂', cls: 'cat-Evidence Collection' },
+  'Escalation':           { icon: '📢', cls: 'cat-Escalation' },
+};
+
+let playbookData = null;
+
+/* ── Load ── */
+async function loadPlaybook() {
+  try {
+    const r = await fetch(`/api/playbooks/${PLAYBOOK_ID}`);
+    if (!r.ok) {
+      if (r.status === 404) { renderError('Playbook not found.'); return; }
+      throw new Error(`HTTP ${r.status}`);
+    }
+    playbookData = await r.json();
+    render(playbookData);
+  } catch(e) {
+    renderError('Failed to load playbook: ' + e.message);
+  }
+}
+
+function renderError(msg) {
+  document.getElementById('content').innerHTML =
+    `<div class="loading-state" style="color:var(--critical)">${escHtml(msg)}</div>`;
+}
+
+/* ── Render ── */
+function render(pb) {
+  const analysis   = pb.analysis_results || {};
+  const steps      = pb.playbook_steps || [];
+  const total      = steps.length;
+  const done       = steps.filter(s => s.is_completed).length;
+  const pct        = total > 0 ? Math.round((done / total) * 100) : 0;
+  const crit       = analysis.criticality || 'INFO';
+  const createdAt  = pb.created_at ? new Date(pb.created_at).toLocaleString() : '—';
+
+  // Group steps by category
+  const grouped = {};
+  steps.forEach(s => {
+    const cat = s.category || 'Other';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(s);
+  });
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <!-- Incident header -->
+    <div class="incident-card">
+      <div class="incident-top">
+        <div>
+          <div class="incident-id">${escHtml(pb.incident_id)}</div>
+          <div class="incident-title">${escHtml(pb.title)}</div>
+          <div class="incident-meta">
+            <span class="badge badge-${crit}">${crit}</span>
+            <span class="status-badge status-${pb.status}" id="status-display">${pb.status.replace('_',' ')}</span>
+            <span class="meta-item">📅 Created: ${createdAt}</span>
+            ${analysis.threat_type ? `<span class="meta-item">⚠️ ${escHtml(analysis.threat_type)}</span>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:2rem;font-weight:800;color:var(--accent)">${pct}%</div>
+          <div style="font-size:.75rem;color:var(--muted)">complete</div>
+        </div>
+      </div>
+
+      <div class="progress-section">
+        <div class="progress-header">
+          <span>${done} of ${total} steps completed</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-row">
+      <label style="font-size:.82rem;color:var(--muted)">Status:</label>
+      <select class="status-select" id="status-select" onchange="updateStatus(this.value)">
+        <option value="open"        ${pb.status==='open'        ?'selected':''}>Open</option>
+        <option value="in_progress" ${pb.status==='in_progress' ?'selected':''}>In Progress</option>
+        <option value="closed"      ${pb.status==='closed'      ?'selected':''}>Closed</option>
+      </select>
+      <button class="btn-export" onclick="window.print()">🖨️ Export as PDF</button>
+    </div>
+
+    <!-- Threat context -->
+    ${analysis.summary ? `
+    <div class="context-card">
+      <div class="context-title">Threat Context</div>
+      <div class="context-summary">${escHtml(analysis.summary)}</div>
+      ${(analysis.ioc_data && hasIOC(analysis.ioc_data)) ? `
+      <div style="margin-top:.75rem;font-size:.8rem;color:var(--muted)">
+        ${renderInlineIOC(analysis.ioc_data)}
+      </div>` : ''}
+    </div>` : ''}
+
+    <!-- Steps grouped by category -->
+    <div id="steps-container">
+      ${Object.entries(grouped).map(([cat, catSteps]) => renderCategory(cat, catSteps)).join('')}
+    </div>
+  `;
+}
+
+function renderCategory(cat, steps) {
+  const info = CATEGORY_ICONS[cat] || { icon: '📌', cls: '' };
+  return `
+    <div class="category-group">
+      <div class="category-header">
+        <div class="category-icon ${info.cls}">${info.icon}</div>
+        <span class="category-name">${escHtml(cat)}</span>
+        <span class="category-count">(${steps.length} steps)</span>
+      </div>
+      ${steps.map(s => renderStep(s)).join('')}
+    </div>`;
+}
+
+function renderStep(step) {
+  const completedAt = step.completed_at
+    ? new Date(step.completed_at).toLocaleString() : null;
+  const completedBy = step.completed_by || 'analyst';
+
+  return `
+    <div class="step-card ${step.is_completed ? 'completed' : ''}" id="step-${step.id}">
+      <input
+        type="checkbox"
+        class="step-checkbox"
+        ${step.is_completed ? 'checked' : ''}
+        onchange="toggleStep('${step.id}', this.checked)"
+        title="Mark step as completed"
+      />
+      <div class="step-body">
+        <div class="step-num">Step ${step.step_order}</div>
+        <div class="step-description">${escHtml(step.description)}</div>
+        ${step.is_completed ? `
+        <div class="step-meta">
+          ✅ Completed ${completedAt ? 'on ' + completedAt : ''}
+          ${step.completed_by ? 'by ' + escHtml(step.completed_by) : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
+}
+
+function hasIOC(ioc) {
+  return Object.values(ioc).some(v => Array.isArray(v) && v.length > 0);
+}
+
+function renderInlineIOC(ioc) {
+  const parts = [];
+  if (ioc.ip_addresses?.length) parts.push(`IPs: ${ioc.ip_addresses.join(', ')}`);
+  if (ioc.usernames?.length)    parts.push(`Users: ${ioc.usernames.join(', ')}`);
+  if (ioc.file_paths?.length)   parts.push(`Files: ${ioc.file_paths.join(', ')}`);
+  if (ioc.processes?.length)    parts.push(`Procs: ${ioc.processes.join(', ')}`);
+  return parts.map(p => `<span style="margin-right:.75rem">${escHtml(p)}</span>`).join('');
+}
+
+/* ── Step toggle ── */
+async function toggleStep(stepId, isCompleted) {
+  const card = document.getElementById(`step-${stepId}`);
+  try {
+    const r = await fetch(`/api/playbooks/${PLAYBOOK_ID}/steps/${stepId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_completed: isCompleted, completed_by: 'analyst' }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const updated = await r.json();
+
+    // Update card appearance
+    if (isCompleted) {
+      card.classList.add('completed');
+      const desc = card.querySelector('.step-description');
+      if (desc) { desc.style.textDecoration = 'line-through'; desc.style.color = 'var(--muted)'; }
+      const body = card.querySelector('.step-body');
+      const existingMeta = body.querySelector('.step-meta');
+      if (!existingMeta) {
+        const meta = document.createElement('div');
+        meta.className = 'step-meta';
+        meta.textContent = '✅ Completed just now by analyst';
+        body.appendChild(meta);
+      }
+    } else {
+      card.classList.remove('completed');
+      const desc = card.querySelector('.step-description');
+      if (desc) { desc.style.textDecoration = ''; desc.style.color = ''; }
+      const meta = card.querySelector('.step-meta');
+      if (meta) meta.remove();
+    }
+
+    // Update progress
+    updateProgress();
+  } catch(e) {
+    // Revert checkbox on failure
+    const cb = card.querySelector('.step-checkbox');
+    if (cb) cb.checked = !isCompleted;
+    alert('Failed to update step: ' + e.message);
+  }
+}
+
+function updateProgress() {
+  const total = document.querySelectorAll('.step-card').length;
+  const done  = document.querySelectorAll('.step-card.completed').length;
+  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+  const fill  = document.getElementById('progress-fill');
+  if (fill) fill.style.width = `${pct}%`;
+}
+
+/* ── Status update ── */
+async function updateStatus(newStatus) {
+  try {
+    const r = await fetch(`/api/playbooks/${PLAYBOOK_ID}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const display = document.getElementById('status-display');
+    if (display) {
+      display.className = `status-badge status-${newStatus}`;
+      display.textContent = newStatus.replace('_', ' ');
+    }
+  } catch(e) {
+    alert('Failed to update status: ' + e.message);
+  }
+}
+
+/* ── WebSocket for live updates ── */
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/ws/live`);
+  ws.onmessage = (evt) => {
+    let msg; try { msg = JSON.parse(evt.data); } catch { return; }
+    if (msg.type === 'step_completed' && msg.data.playbook_id === PLAYBOOK_ID) {
+      updateProgress();
+    }
+    if (msg.type === 'playbook_updated' && msg.data.id === PLAYBOOK_ID) {
+      const sel = document.getElementById('status-select');
+      if (sel) sel.value = msg.data.status;
+      const display = document.getElementById('status-display');
+      if (display) {
+        display.className = `status-badge status-${msg.data.status}`;
+        display.textContent = msg.data.status.replace('_', ' ');
+      }
+    }
+  };
+  ws.onclose = () => setTimeout(connectWS, 3000);
+}
+connectWS();
+
+/* ── Helpers ── */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+loadPlaybook();
+</script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — AI SOC Analyst</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --critical:  #ff4444;
+      --high:      #ff8c00;
+      --medium:    #e3b341;
+      --low:       #3fb950;
+      --font:      'Segoe UI', system-ui, sans-serif;
+      --mono:      'Consolas', 'SF Mono', monospace;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: .03em; cursor: pointer; }
+    .logo span { color: var(--accent); }
+    .back-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .4rem .9rem; border-radius: 6px;
+      font-size: .82rem; cursor: pointer; text-decoration: none;
+      display: flex; align-items: center; gap: .4rem; transition: background .15s;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    /* ── Content ── */
+    .content { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: .35rem; }
+    .page-sub { color: var(--muted); font-size: .9rem; margin-bottom: 2.5rem; }
+
+    /* ── Section ── */
+    .section { margin-bottom: 2.5rem; }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .section-title {
+      font-size: 1rem; font-weight: 700;
+      display: flex; align-items: center; gap: .6rem;
+    }
+    .provider-badge {
+      padding: 2px 9px; border-radius: 4px; font-size: .72rem;
+      font-weight: 700; text-transform: uppercase;
+    }
+    .badge-groq   { background:rgba(88,166,255,.12); color:var(--accent); border:1px solid rgba(88,166,255,.25); }
+    .badge-google { background:rgba(63,185,80,.12);  color:var(--low);    border:1px solid rgba(63,185,80,.25);  }
+
+    /* ── API key status ── */
+    .api-key-row {
+      display: flex; align-items: center; gap: .6rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: .75rem 1rem;
+      font-size: .85rem; margin-bottom: 1rem;
+    }
+    .api-status-icon { font-size: 1rem; }
+    .api-status-text { flex: 1; }
+    .api-status-set   { color: var(--low); }
+    .api-status-unset { color: var(--critical); }
+    .api-key-hint { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+    .btn-test-provider {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .35rem .9rem; border-radius: 6px;
+      font-size: .78rem; cursor: pointer; transition: background .15s;
+      white-space: nowrap;
+    }
+    .btn-test-provider:hover { background: var(--border); }
+    .btn-test-provider:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Model cards grid ── */
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: .85rem;
+    }
+    .model-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s;
+      position: relative;
+    }
+    .model-card:hover { border-color: var(--accent); }
+    .model-card.active {
+      border-color: var(--low);
+      box-shadow: 0 0 0 3px rgba(63,185,80,.12), 0 0 18px rgba(63,185,80,.08);
+    }
+    .model-card-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: .5rem;
+    }
+    .model-name { font-size: .95rem; font-weight: 700; }
+    .active-crown {
+      position: absolute; top: -10px; right: 12px;
+      background: var(--low); color: #fff;
+      font-size: .62rem; font-weight: 800; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 99px; letter-spacing: .06em;
+    }
+    .speed-badge {
+      padding: 2px 7px; border-radius: 4px;
+      font-size: .65rem; font-weight: 700;
+      background: rgba(88,166,255,.1);
+      color: var(--accent); border: 1px solid rgba(88,166,255,.2);
+    }
+    .model-desc { font-size: .8rem; color: var(--muted); line-height: 1.5; margin-top: .4rem; margin-bottom: .75rem; }
+    .model-card-footer {
+      display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+    }
+    .btn-set-model {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .35rem .75rem; border-radius: 6px;
+      font-size: .78rem; cursor: pointer; transition: background .15s, border-color .15s;
+      text-align: center;
+    }
+    .btn-set-model:hover     { background: var(--border); }
+    .model-card.active .btn-set-model {
+      background: rgba(63,185,80,.1); border-color: var(--low);
+      color: var(--low); cursor: default;
+    }
+    .btn-test-card {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); padding: .35rem .7rem; border-radius: 6px;
+      font-size: .75rem; cursor: pointer; transition: border-color .15s, color .15s;
+      white-space: nowrap;
+    }
+    .btn-test-card:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-test-card:disabled { opacity: .4; cursor: not-allowed; }
+    .test-result {
+      font-size: .72rem; margin-top: .5rem; padding: .35rem .6rem;
+      border-radius: 5px; display: none;
+    }
+    .test-result.ok    { background: rgba(63,185,80,.1);  color: var(--low);      border:1px solid rgba(63,185,80,.2); }
+    .test-result.error { background: rgba(255,68,68,.1);  color: var(--critical); border:1px solid rgba(255,68,68,.2); }
+
+    /* ── Loader ── */
+    .loading-spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .6s linear infinite;
+      vertical-align: middle; margin-right: .3rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed; top: 1rem; right: 1rem; z-index: 1000;
+      display: flex; flex-direction: column; gap: .5rem; pointer-events: none;
+    }
+    .toast {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: .7rem 1rem;
+      min-width: 260px; max-width: 340px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      display: flex; gap: .7rem; align-items: flex-start;
+      pointer-events: auto; animation: slideIn .2s ease-out;
+    }
+    .toast.ok       { border-color: var(--low); }
+    .toast.error    { border-color: var(--critical); }
+    .toast-icon     { font-size: 1rem; flex-shrink: 0; }
+    .toast-body     { flex: 1; }
+    .toast-title    { font-weight: 700; font-size: .8rem; margin-bottom: .1rem; }
+    .toast-msg      { font-size: .75rem; color: var(--muted); }
+    .toast-close    { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; }
+    @keyframes slideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0);    opacity: 1; }
+      to   { transform: translateX(120%); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo" onclick="location.href='/'">AI <span>SOC</span> Analyst</div>
+  <a href="/" class="back-btn">← Back to Dashboard</a>
+</header>
+
+<div class="content">
+  <h1>⚙️ Model Settings</h1>
+  <p class="page-sub">Select which free LLM to use for threat analysis and playbook generation. The active model is used for all new analyses immediately.</p>
+
+  <div id="settings-content">
+    <div style="text-align:center;padding:3rem;color:var(--muted)">
+      <div class="loading-spinner"></div> Loading models…
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+let allModels = [];
+let activeModelId = null;
+let apiKeys = { groq: false, google: false };
+
+/* ── Load everything ── */
+async function loadSettings() {
+  try {
+    const [modelsRes, currentRes, keysRes] = await Promise.all([
+      fetch('/api/settings/models'),
+      fetch('/api/settings/current-model'),
+      fetch('/api/settings/api-keys'),
+    ]);
+    allModels    = (await modelsRes.json()).models  || [];
+    activeModelId = (await currentRes.json()).model_id;
+    apiKeys      = await keysRes.json();
+    render();
+  } catch(e) {
+    document.getElementById('settings-content').innerHTML =
+      `<div style="color:var(--critical);padding:2rem">Failed to load settings: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function render() {
+  const groups = {};
+  allModels.forEach(m => {
+    if (!groups[m.provider]) groups[m.provider] = [];
+    groups[m.provider].push(m);
+  });
+
+  const html = Object.entries(groups).map(([provider, models]) => {
+    const providerKey    = provider.toLowerCase();
+    const hasKey         = apiKeys[providerKey] ?? false;
+    const badgeClass     = `badge-${providerKey}`;
+    const keyLabel       = providerKey === 'groq' ? 'GROQ_API_KEY' : 'GOOGLE_API_KEY';
+    const keyHint        = providerKey === 'groq'
+      ? 'Get a free key at console.groq.com'
+      : 'Get a free key at aistudio.google.com';
+
+    return `
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">
+            <span class="provider-badge ${badgeClass}">${escHtml(provider)}</span>
+            ${escHtml(provider)} Models
+          </div>
+        </div>
+
+        <!-- API key status row -->
+        <div class="api-key-row">
+          <span class="api-status-icon">${hasKey ? '✅' : '❌'}</span>
+          <div class="api-status-text">
+            <div class="${hasKey ? 'api-status-set' : 'api-status-unset'}">
+              ${keyLabel} — ${hasKey ? 'Configured' : 'Not set'}
+            </div>
+            <div class="api-key-hint">${hasKey ? 'API key is loaded from .env' : keyHint}</div>
+          </div>
+          <button class="btn-test-provider"
+                  id="test-provider-${providerKey}"
+                  onclick="testProvider('${providerKey}', '${models[0].id}')"
+                  ${!hasKey ? 'disabled' : ''}>
+            Test Connection
+          </button>
+        </div>
+
+        <!-- Model cards -->
+        <div class="model-grid">
+          ${models.map(m => renderModelCard(m, hasKey)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('settings-content').innerHTML = html;
+}
+
+function renderModelCard(m, providerHasKey) {
+  const isActive = m.id === activeModelId;
+  return `
+    <div class="model-card ${isActive ? 'active' : ''}" id="card-${m.id}">
+      ${isActive ? '<span class="active-crown">Active</span>' : ''}
+      <div class="model-card-header">
+        <div class="model-name">${escHtml(m.name)}</div>
+        <span class="speed-badge">${escHtml(m.speed)}</span>
+      </div>
+      <div class="model-desc">${escHtml(m.description)}</div>
+      <div class="model-card-footer">
+        <button class="btn-set-model"
+                onclick="setModel('${m.id}', '${escHtml(m.name)}')"
+                ${isActive ? 'disabled' : ''}>
+          ${isActive ? '✓ Active' : 'Use this model'}
+        </button>
+        <button class="btn-test-card"
+                id="test-btn-${m.id}"
+                onclick="testCard('${m.id}')"
+                ${!providerHasKey ? 'disabled title="API key not set"' : ''}>
+          Test
+        </button>
+      </div>
+      <div class="test-result" id="test-result-${m.id}"></div>
+    </div>`;
+}
+
+/* ── Set active model ── */
+async function setModel(modelId, modelName) {
+  try {
+    const r = await fetch('/api/settings/current-model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: modelId }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    activeModelId = modelId;
+    render();
+    showToast('ok', '✅', `Model switched`, `Now using ${modelName} for all new analyses.`);
+  } catch(e) {
+    showToast('error', '❌', 'Failed to switch model', e.message);
+  }
+}
+
+/* ── Test a specific model card ── */
+async function testCard(modelId) {
+  const btn = document.getElementById(`test-btn-${modelId}`);
+  const resultEl = document.getElementById(`test-result-${modelId}`);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span>';
+  resultEl.style.display = 'none';
+
+  try {
+    const r = await fetch(`/api/settings/test-model/${modelId}`);
+    const data = await r.json();
+    resultEl.className = `test-result ${data.status === 'ok' ? 'ok' : 'error'}`;
+    resultEl.style.display = 'block';
+    if (data.status === 'ok') {
+      resultEl.textContent = `✓ ${data.latency_ms}ms response time`;
+    } else {
+      resultEl.textContent = `✗ ${data.error}`;
+    }
+  } catch(e) {
+    resultEl.className = 'test-result error';
+    resultEl.style.display = 'block';
+    resultEl.textContent = `✗ ${e.message}`;
+  } finally {
+    btn.innerHTML = 'Test';
+    btn.disabled = false;
+  }
+}
+
+/* ── Test all models for a provider ── */
+async function testProvider(providerKey, firstModelId) {
+  const btn = document.getElementById(`test-provider-${providerKey}`);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span> Testing…';
+
+  const models = allModels.filter(m => m.provider.toLowerCase() === providerKey);
+  let ok = 0, fail = 0;
+
+  await Promise.all(models.map(async m => {
+    const btn2 = document.getElementById(`test-btn-${m.id}`);
+    const resultEl = document.getElementById(`test-result-${m.id}`);
+    if (btn2) { btn2.disabled = true; btn2.innerHTML = '<span class="loading-spinner"></span>'; }
+
+    try {
+      const r = await fetch(`/api/settings/test-model/${m.id}`);
+      const data = await r.json();
+      if (resultEl) {
+        resultEl.className = `test-result ${data.status === 'ok' ? 'ok' : 'error'}`;
+        resultEl.style.display = 'block';
+        resultEl.textContent = data.status === 'ok'
+          ? `✓ ${data.latency_ms}ms`
+          : `✗ ${data.error}`;
+      }
+      data.status === 'ok' ? ok++ : fail++;
+    } catch(e) {
+      if (resultEl) {
+        resultEl.className = 'test-result error';
+        resultEl.style.display = 'block';
+        resultEl.textContent = `✗ ${e.message}`;
+      }
+      fail++;
+    } finally {
+      if (btn2) { btn2.innerHTML = 'Test'; btn2.disabled = false; }
+    }
+  }));
+
+  btn.innerHTML = 'Test Connection';
+  btn.disabled = false;
+  showToast(
+    fail === 0 ? 'ok' : 'error',
+    fail === 0 ? '✅' : '⚠️',
+    `${providerKey.charAt(0).toUpperCase() + providerKey.slice(1)} test complete`,
+    `${ok} passed, ${fail} failed`
+  );
+}
+
+/* ── Toast ── */
+function showToast(type, icon, title, msg) {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <div class="toast-body">
+      <div class="toast-title">${escHtml(title)}</div>
+      <div class="toast-msg">${escHtml(msg)}</div>
+    </div>
+    <button class="toast-close" onclick="this.closest('.toast').remove()">×</button>
+  `;
+  container.prepend(el);
+  setTimeout(() => {
+    el.style.animation = 'slideOut .2s ease-in forwards';
+    setTimeout(() => el.remove(), 200);
+  }, 5000);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+loadSettings();
+</script>
+</body>
+</html>
